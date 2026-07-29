@@ -1,10 +1,27 @@
-PAPER_WIDTH = 600
-PAPER_HEIGHT = 850
+# ==========================================
+# Medidas de la hoja (mm)
+# ==========================================
+
+PAPER_WIDTH_MM = 210
+PAPER_HEIGHT_MM = 297
+
+
+# ==========================================
+# Medidas de la carta (mm)
+# ==========================================
+
+CARD_WIDTH_MM = 63
+CARD_HEIGHT_MM = 88
+
+
+# ==========================================
+# Apariencia
+# ==========================================
 
 BACKGROUND_COLOR = (60, 60, 60)
 
-SHADOW_OFFSET = 6
+PAPER_COLOR = (255, 255, 255)
 
 SHADOW_COLOR = (120, 120, 120)
 
-PAPER_COLOR = (255, 255, 255)
+SHADOW_OFFSET = 6
