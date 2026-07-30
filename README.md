@@ -1,16 +1,1 @@
-# Videoteca Armengol
-
-Aplicación para generar hojas imprimibles de cartas de películas.
-
-## Objetivo
-
-Arrastrar varias portadas de películas.
-
-Generar automáticamente un PDF listo para imprimir.
-
-## Funciones
-
-- Recortar portadas automáticamente.
-- Añadir marco.
-- Organizar las cartas.
-- Generar PDF.
+Videoteca Kentalet es una herramienta de escritorio para crear hojas imprimibles de cartas a partir de un conjunto de imágenes. El usuario solo tiene que arrastrar las imágenes, elegir un diseño y exportar un PDF listo para imprimir.
