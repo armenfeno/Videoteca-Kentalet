@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QWidget
-from PySide6.QtGui import QPainter, QColor, QPixmap
+from PySide6.QtGui import QPainter, QColor, QPixmap, QPen
 from PySide6.QtCore import QRect, QSize
 from src.layout import GridLayout
 from src.settings import (
@@ -15,7 +15,9 @@ from src.settings import (
     CARD_SPACING_MM,
     CARDS_PER_COLUMN,
     CARDS_PER_ROW,
-    MAX_CARDS
+    MAX_CARDS,
+    CARD_BORDER_RADIUS,
+    CARD_BORDER_WIDTH
 )
 from src.units import (
     mm_to_pixels_x,
@@ -65,6 +67,12 @@ class CardCanvas(QWidget):
         """
         self.images.clear()
         self.update()
+
+    def has_images(self):
+        """
+        Indica si el lienzo contiene imágenes.
+        """
+        return len(self.images) > 0
 
     def paintEvent(self, event):
         """Dibuja toda la escena."""
@@ -265,9 +273,17 @@ class CardCanvas(QWidget):
     def draw_card(self, painter, card_rect):
         """Dibuja el borde de la carta."""
 
-        painter.drawRect(
-            card_rect
+        pen = QPen(QColor(0, 0, 0))
+        pen.setWidth(CARD_BORDER_WIDTH)
+
+        painter.setPen(pen)
+
+        painter.drawRoundedRect(
+            card_rect,
+            CARD_BORDER_RADIUS,
+            CARD_BORDER_RADIUS,
         )
+
     def draw_card_layout(self, painter, image, card_rect):
         """
         Dibuja una carta completa dentro del rectángulo indicado.

@@ -2,12 +2,17 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QWidget,
     QVBoxLayout,
+    QHBoxLayout,
     QPushButton,
     QFileDialog,
     QScrollArea,
+    QStyle
 )
 from src.canvas import CardCanvas
-from src.settings import BACKGROUND_COLOR
+from src.settings import (
+    BACKGROUND_COLOR,
+    BUTTON_STYLE
+)
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt
 
@@ -26,10 +31,39 @@ class MainWindow(QMainWindow):
 
         # Layout principal
         layout = QVBoxLayout(central_widget)
+        buttons_layout = QHBoxLayout()
 
         # Botón temporal
-        self.open_button = QPushButton("Abrir imágenes...")
+        self.new_selection_button = QPushButton("Nueva selección")
+        self.add_images_button = QPushButton("Añadir imágenes")
         self.clear_button = QPushButton("Limpiar")
+        self.export_pdf_button = QPushButton("Exportar PDF")
+
+        style = self.style()
+
+        self.new_selection_button.setIcon(
+            style.standardIcon(QStyle.StandardPixmap.SP_FileIcon)
+        )
+
+        self.add_images_button.setIcon(
+            style.standardIcon(QStyle.StandardPixmap.SP_FileDialogNewFolder)
+        )
+
+        self.clear_button.setIcon(
+            style.standardIcon(QStyle.StandardPixmap.SP_TrashIcon)
+        )
+
+        self.export_pdf_button.setIcon(
+            style.standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton)
+        )
+
+        for button in (
+            self.new_selection_button,
+            self.add_images_button,
+            self.clear_button,
+            self.export_pdf_button,
+        ):
+            button.setStyleSheet(BUTTON_STYLE)
 
         # Canvas
         self.canvas = CardCanvas()
@@ -44,11 +78,18 @@ class MainWindow(QMainWindow):
             f"background-color: rgb({BACKGROUND_COLOR[0]}, {BACKGROUND_COLOR[1]}, {BACKGROUND_COLOR[2]});"
         )
 
-        layout.addWidget(self.open_button)
-        layout.addWidget(self.clear_button)
+        buttons_layout.addWidget(self.new_selection_button)
+        buttons_layout.addWidget(self.add_images_button)
+        buttons_layout.addWidget(self.clear_button)
+
+        buttons_layout.addStretch()
+
+        buttons_layout.addWidget(self.export_pdf_button)
+        layout.addLayout(buttons_layout)
         layout.addWidget(self.scroll_area)
 
-        self.open_button.clicked.connect(self.open_images)
+        self.new_selection_button.clicked.connect(self.new_selection)
+        self.add_images_button.clicked.connect(self.add_images)
         self.clear_button.clicked.connect(self.clear_images)
 
         self.canvas.set_images(
@@ -65,6 +106,8 @@ class MainWindow(QMainWindow):
             ])
         )
 
+        self.update_buttons()
+
     def load_images(self, file_paths):
         """Carga una lista de imágenes desde disco."""
 
@@ -72,7 +115,8 @@ class MainWindow(QMainWindow):
             QPixmap(path)
             for path in file_paths
         ]
-    def open_images(self):
+    
+    def select_images(self):
         """Permite seleccionar imágenes y mostrarlas en el lienzo."""
 
         file_paths, _ = QFileDialog.getOpenFileNames(
@@ -83,10 +127,38 @@ class MainWindow(QMainWindow):
         )
 
         if not file_paths:
+            return []
+
+        return self.load_images(file_paths)
+
+    def new_selection(self):
+        images = self.select_images()
+
+        if not images:
             return
 
-        self.canvas.set_images(
-            self.load_images(file_paths)
-        )
+        self.canvas.set_images(images)
+
+        self.update_buttons()
+
+    def add_images(self):
+        images = self.select_images()
+
+        if not images:
+            return
+
+        self.canvas.add_images(images)
+
+        self.update_buttons()
+    
     def clear_images(self):
         self.canvas.clear_images()
+        self.update_buttons()
+        
+    def update_buttons(self):
+        """Actualiza el estado de los botones según el proyecto actual."""
+
+        has_images = self.canvas.has_images()
+
+        self.clear_button.setEnabled(has_images)
+        self.export_pdf_button.setEnabled(has_images)

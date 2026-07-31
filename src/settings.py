@@ -10,6 +10,9 @@ CARD_HEIGHT_MM = 88
 
 CARD_SPACING_MM = 5
 
+CARD_BORDER_RADIUS = 12
+CARD_BORDER_WIDTH = 1
+
 # ==========================================
 # Medidas de visualización (px)
 # ==========================================
@@ -34,3 +37,12 @@ SHADOW_OFFSET = 6
 CARDS_PER_ROW = 3
 CARDS_PER_COLUMN = 3
 MAX_CARDS = 9
+
+# ==========================================
+# Estilos
+# ==========================================
+BUTTON_STYLE = """
+QPushButton {
+    padding: 6px 12px;
+}
+"""
