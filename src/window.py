@@ -17,6 +17,8 @@ from src.settings import (
 from PySide6.QtGui import QPixmap
 from PySide6.QtCore import Qt
 
+from src.pdf_exporter import PdfExporter
+
 
 class MainWindow(QMainWindow):
 
@@ -108,6 +110,9 @@ class MainWindow(QMainWindow):
         self.new_selection_button.clicked.connect(self.new_selection)
         self.add_images_button.clicked.connect(self.add_images)
         self.clear_button.clicked.connect(self.clear_images)
+        self.export_pdf_button.clicked.connect(
+            self.export_pdf
+        )
 
         self.canvas.set_images(
             self.load_images([
@@ -171,6 +176,34 @@ class MainWindow(QMainWindow):
     def clear_images(self):
         self.canvas.clear_images()
         self.update_buttons()
+
+    def export_pdf(self):
+        """Exporta el proyecto actual a un archivo PDF."""
+
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Exportar PDF",
+            "cartas.pdf",
+            "PDF (*.pdf)",
+        )
+
+        if not filename:
+            return
+
+        exporter = PdfExporter()
+
+        old_mode = self.canvas.print_mode
+
+        self.canvas.print_mode = True
+
+        exporter.export(
+            self.canvas,
+            filename,
+        )
+
+        self.canvas.print_mode = old_mode
+
+        self.canvas.update()
         
     def update_buttons(self):
         """Actualiza el estado de los botones según el proyecto actual."""

@@ -14,8 +14,6 @@ CARD_BORDER_RADIUS_MM = 3
 CARD_BORDER_WIDTH = 1
 CARD_BORDER_COLOR = (210, 203, 188)
 
-BLEED_MM = 2
-
 # ==========================================
 # Medidas de visualización (px)
 # ==========================================
@@ -24,6 +22,8 @@ PAPER_WIDTH = 600
 PAPER_HEIGHT = 850
 
 POSTER_MARGIN_MM = 6
+
+PREVIEW_DPI = 96
 
 
 # ==========================================
@@ -50,3 +50,14 @@ QPushButton {
     padding: 6px 12px;
 }
 """
+
+# ------------------------------------------------------------
+# Impresión
+# ------------------------------------------------------------
+
+BLEED_MM = 2
+CUT_MARK_LENGTH_MM = 5
+CUT_MARK_OVERLAP_MM = 2
+CUT_MARK_CROSS_SIZE_MM = 2
+CUT_MARK_WIDTH_MM = 0.25
+CUT_MARK_EXTENSION_MM = 1.5
