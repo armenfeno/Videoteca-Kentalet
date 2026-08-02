@@ -10,8 +10,11 @@ CARD_HEIGHT_MM = 88
 
 CARD_SPACING_MM = 5
 
-CARD_BORDER_RADIUS = 12
+CARD_BORDER_RADIUS_MM = 3
 CARD_BORDER_WIDTH = 1
+CARD_BORDER_COLOR = (210, 203, 188)
+
+BLEED_MM = 2
 
 # ==========================================
 # Medidas de visualización (px)
@@ -20,7 +23,8 @@ CARD_BORDER_WIDTH = 1
 PAPER_WIDTH = 600
 PAPER_HEIGHT = 850
 
-POSTER_MARGIN_MM = 2
+POSTER_MARGIN_MM = 6
+
 
 # ==========================================
 # Apariencia
@@ -28,7 +32,7 @@ POSTER_MARGIN_MM = 2
 
 BACKGROUND_COLOR = (60, 60, 60)
 
-PAPER_COLOR = (255, 255, 255)
+PAPER_COLOR = (248, 245, 238)
 
 SHADOW_COLOR = (120, 120, 120)
 

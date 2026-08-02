@@ -1,6 +1,12 @@
 from PySide6.QtWidgets import QWidget
-from PySide6.QtGui import QPainter, QColor, QPixmap, QPen
-from PySide6.QtCore import QRect, QSize
+from PySide6.QtGui import (
+    QPainter,
+    QColor,
+    QPixmap,
+    QPen,
+    QPainterPath,
+)
+from PySide6.QtCore import QRect, QSize, Qt
 from src.layout import GridLayout
 from src.settings import (
     PAPER_WIDTH,
@@ -16,8 +22,11 @@ from src.settings import (
     CARDS_PER_COLUMN,
     CARDS_PER_ROW,
     MAX_CARDS,
-    CARD_BORDER_RADIUS,
-    CARD_BORDER_WIDTH
+    CARD_BORDER_RADIUS_MM,
+    CARD_BORDER_WIDTH,
+    CARD_BORDER_COLOR,
+    BLEED_MM,
+    BUTTON_STYLE
 )
 from src.units import (
     mm_to_pixels_x,
@@ -34,6 +43,7 @@ class CardCanvas(QWidget):
 
         self.images = []
         self.workspace_margin = 80
+        self.print_mode = False
 
     def sizeHint(self):
         """Tamaño preferido del lienzo."""
@@ -85,7 +95,17 @@ class CardCanvas(QWidget):
 
         paper_rect = self.prepare_paper()
 
-        layout = self.prepare_grid(paper_rect)
+        if self.print_mode:
+
+            layout = self.prepare_print_grid(
+                paper_rect,
+            )
+
+        else:
+
+            layout = self.prepare_preview_grid(
+                paper_rect,
+            )
 
         shadow_rect = self.prepare_shadow(paper_rect)
         
@@ -127,7 +147,7 @@ class CardCanvas(QWidget):
             PAPER_HEIGHT,
             )
 
-    def prepare_grid(self, paper_rect):
+    def prepare_preview_grid(self, paper_rect):
         """Calcula la posición y tamaño de la cuadrícula."""
 
         card_width = mm_to_pixels_x(CARD_WIDTH_MM)
@@ -142,6 +162,36 @@ class CardCanvas(QWidget):
         grid_height = (
             CARDS_PER_COLUMN * card_height
             + (CARDS_PER_COLUMN - 1) * card_spacing
+        )
+
+        free_width = paper_rect.width() - grid_width
+        free_height = paper_rect.height() - grid_height
+
+        grid_x = paper_rect.x() + free_width // 2
+        grid_y = paper_rect.y() + free_height // 2
+
+        return GridLayout(
+            grid_x=grid_x,
+            grid_y=grid_y,
+            card_width=card_width,
+            card_height=card_height,
+            card_spacing=card_spacing,
+        )
+
+    def prepare_print_grid(self, paper_rect):
+        """Calcula el layout para impresión."""
+
+        card_width = mm_to_pixels_x(CARD_WIDTH_MM)
+        card_height = mm_to_pixels_y(CARD_HEIGHT_MM)
+
+        card_spacing = 0
+
+        grid_width = (
+            CARDS_PER_ROW * card_width
+        )
+
+        grid_height = (
+            CARDS_PER_COLUMN * card_height
         )
 
         free_width = paper_rect.width() - grid_width
@@ -215,9 +265,14 @@ class CardCanvas(QWidget):
     def draw_paper(self, painter, paper_rect):
         """Dibuja la hoja de trabajo."""
 
+        color = PAPER_COLOR
+
+        if self.print_mode:
+            color = (255, 255, 255)
+
         painter.fillRect(
             paper_rect,
-            QColor(*PAPER_COLOR)
+            QColor(*color)
         )
 
     def draw_grid(self, painter, layout):
@@ -253,7 +308,7 @@ class CardCanvas(QWidget):
                 painter,
                 image,
                 card_rect,
-            )
+            )   
 
     def draw_poster(
         self,
@@ -262,40 +317,143 @@ class CardCanvas(QWidget):
         poster_y,
         scaled_poster,
     ):
-        """Dibuja el póster escalado en la posición calculada."""
+        """Dibuja el póster con esquinas redondeadas."""
 
-        painter.drawPixmap(
+        radius = mm_to_pixels_x(CARD_BORDER_RADIUS_MM)
+
+        poster_rect = QRect(
             poster_x,
             poster_y,
-            scaled_poster
+            scaled_poster.width(),
+            scaled_poster.height(),
         )
 
-    def draw_card(self, painter, card_rect):
-        """Dibuja el borde de la carta."""
+        path = QPainterPath()
+        path.addRoundedRect(
+            poster_rect,
+            radius,
+            radius,
+        )
 
-        pen = QPen(QColor(0, 0, 0))
-        pen.setWidth(CARD_BORDER_WIDTH)
+        painter.save()
 
-        painter.setPen(pen)
+        painter.setClipPath(path)
+
+        painter.drawPixmap(
+            poster_rect,
+            scaled_poster,
+        )
+
+        painter.restore()
+
+    def draw_card_background(self, painter, card_rect):
+        """Dibuja el fondo de la carta."""
+
+        painter.setBrush(QColor(*PAPER_COLOR))
+        painter.setPen(Qt.NoPen)
+
+        radius = mm_to_pixels_x(CARD_BORDER_RADIUS_MM)
 
         painter.drawRoundedRect(
             card_rect,
-            CARD_BORDER_RADIUS,
-            CARD_BORDER_RADIUS,
+            radius,
+            radius,
+        )
+
+    def draw_card_bleed(self, painter, card_rect):
+        """Dibuja el sangrado de impresión."""
+
+        if not self.print_mode:
+            return
+
+        bleed = mm_to_pixels_x(BLEED_MM)
+
+        bleed_rect = QRect(
+            card_rect.x() - bleed,
+            card_rect.y() - bleed,
+            card_rect.width() + bleed * 2,
+            card_rect.height() + bleed * 2,
+        )
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(QColor(*PAPER_COLOR))
+
+        radius = mm_to_pixels_x(CARD_BORDER_RADIUS_MM)
+
+        painter.drawRoundedRect(
+            bleed_rect,
+            radius + bleed,
+            radius + bleed,
+        )
+
+    def draw_card_border(self, painter, card_rect):
+        """Dibuja el borde de la carta."""
+
+        pen = QPen(QColor(*CARD_BORDER_COLOR))
+        pen.setWidth(CARD_BORDER_WIDTH)
+
+        painter.setPen(pen)
+        painter.setBrush(Qt.NoBrush)
+
+        radius = mm_to_pixels_x(CARD_BORDER_RADIUS_MM)
+
+        painter.drawRoundedRect(
+            card_rect,
+            radius,
+            radius,
+        )
+
+    def draw_cut_mark(
+        self,
+        painter,
+        x1,
+        y1,
+        x2,
+        y2,
+    ):
+        """Dibuja una única marca de corte."""
+
+        #pen = QPen(QColor(140, 140, 140))
+        #pen.setWidth(1)
+        pen = QPen(QColor(0, 0, 255))
+        pen.setWidth(4)
+
+        painter.setPen(pen)
+
+        painter.drawLine(
+            x1,
+            y1,
+            x2,
+            y2,
         )
 
     def draw_card_layout(self, painter, image, card_rect):
         """
         Dibuja una carta completa dentro del rectángulo indicado.
         """
-        # ------------------------------------------------------------
-        # Preparar el póster
-        # ------------------------------------------------------------
-        
+
         poster_x, poster_y, scaled_poster = self.prepare_poster(
             image,
             card_rect,
         )
 
-        self.draw_poster(painter, poster_x, poster_y, scaled_poster)
-        self.draw_card(painter, card_rect)
+        self.draw_card_bleed(
+            painter,
+            card_rect,
+        )
+
+        self.draw_card_background(
+            painter,
+            card_rect,
+        )
+
+        self.draw_poster(
+            painter,
+            poster_x,
+            poster_y,
+            scaled_poster,
+        )
+
+        self.draw_card_border(
+            painter,
+            card_rect,
+        )

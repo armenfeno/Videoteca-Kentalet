@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QFileDialog,
     QScrollArea,
+    QCheckBox,
     QStyle
 )
 from src.canvas import CardCanvas
@@ -38,6 +39,10 @@ class MainWindow(QMainWindow):
         self.add_images_button = QPushButton("Añadir imágenes")
         self.clear_button = QPushButton("Limpiar")
         self.export_pdf_button = QPushButton("Exportar PDF")
+        self.print_mode_checkbox = QCheckBox("Modo impresión")
+        self.print_mode_checkbox.toggled.connect(
+            self.toggle_print_mode
+        )
 
         style = self.style()
 
@@ -62,6 +67,7 @@ class MainWindow(QMainWindow):
             self.add_images_button,
             self.clear_button,
             self.export_pdf_button,
+            self.print_mode_checkbox,
         ):
             button.setStyleSheet(BUTTON_STYLE)
 
@@ -83,6 +89,17 @@ class MainWindow(QMainWindow):
         buttons_layout.addWidget(self.clear_button)
 
         buttons_layout.addStretch()
+
+        buttons_layout.addWidget(
+            self.print_mode_checkbox
+        )
+
+        buttons_layout.addSpacing(20)
+
+        buttons_layout.addWidget(
+            self.export_pdf_button
+        )
+
 
         buttons_layout.addWidget(self.export_pdf_button)
         layout.addLayout(buttons_layout)
@@ -162,3 +179,12 @@ class MainWindow(QMainWindow):
 
         self.clear_button.setEnabled(has_images)
         self.export_pdf_button.setEnabled(has_images)
+
+    def toggle_print_mode(self):
+        """Activa o desactiva el modo impresión."""
+
+        self.canvas.print_mode = (
+            self.print_mode_checkbox.isChecked()
+        )
+
+        self.canvas.update()
