@@ -55,7 +55,7 @@ QPushButton {
 # Impresión
 # ------------------------------------------------------------
 
-BLEED_MM = 2
+BLEED_MM = 0
 CUT_MARK_LENGTH_MM = 5
 CUT_MARK_OVERLAP_MM = 2
 CUT_MARK_CROSS_SIZE_MM = 2

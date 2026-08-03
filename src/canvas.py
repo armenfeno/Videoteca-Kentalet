@@ -52,6 +52,9 @@ class CardCanvas(QWidget):
         self.workspace_margin = 80
         self.print_mode = False
         self.dpi = PREVIEW_DPI
+        self.overlay = QPixmap(
+            "resources/themes/peliculas/peliculas 1.0.png"
+        )
 
     def mm_x(self, mm):
         return mm_to_pixels_x(
@@ -276,12 +279,10 @@ class CardCanvas(QWidget):
         lateral se calcula automáticamente para centrar la imagen.
         """
 
-        poster_margin = self.mm_y(POSTER_MARGIN_MM)
+        poster_margin_x = 23
+        poster_margin_y = 22
 
-        poster_height = (
-            card_rect.height()
-            - (2 * poster_margin)
-        )
+        poster_height = 288
 
         scaled_poster = image.scaledToHeight(
             poster_height
@@ -289,15 +290,9 @@ class CardCanvas(QWidget):
 
         poster_width = scaled_poster.width()
 
-        poster_x = (
-            card_rect.x()
-            + (card_rect.width() - poster_width) // 2
-        )
+        poster_x = card_rect.x() + poster_margin_x
 
-        poster_y = (
-            card_rect.y()
-            + poster_margin
-        )
+        poster_y = card_rect.y() + poster_margin_y
 
         return (
             poster_x,
@@ -404,6 +399,18 @@ class CardCanvas(QWidget):
         )
 
         painter.restore()
+
+    def draw_overlay(
+        self,
+        painter,
+        card_rect,
+    ):
+        """Dibuja el overlay del tema."""
+
+        painter.drawPixmap(
+            card_rect,
+            self.overlay,
+        )
 
     def draw_card_background(self, painter, card_rect):
         """Dibuja el fondo de la carta."""
@@ -668,12 +675,32 @@ class CardCanvas(QWidget):
             card_rect,
         )
 
-        self.draw_card_bleed(
-            painter,
-            card_rect,
-        )
+        if not hasattr(self, "_debug_done"):
 
-        self.draw_card_background(
+            self._debug_done = True
+
+            print("\n====================")
+            print("CARD")
+            print(card_rect)
+
+            print("\nPOSTER")
+            print(
+                QRect(
+                    poster_x,
+                    poster_y,
+                    scaled_poster.width(),
+                    scaled_poster.height(),
+                )
+            )
+
+            print("\nMARGINS")
+            print("Left :", poster_x - card_rect.x())
+            print("Top  :", poster_y - card_rect.y())
+            print("Right:", card_rect.right() - (poster_x + scaled_poster.width()))
+            print("Bottom:", card_rect.bottom() - (poster_y + scaled_poster.height()))
+            print("====================\n")
+
+        self.draw_card_bleed(
             painter,
             card_rect,
         )
@@ -683,6 +710,11 @@ class CardCanvas(QWidget):
             poster_x,
             poster_y,
             scaled_poster,
+        )
+
+        self.draw_overlay(
+            painter,
+            card_rect,
         )
 
         if not self.print_mode:
