@@ -11,8 +11,6 @@ CARD_HEIGHT_MM = 88
 CARD_SPACING_MM = 5
 
 CARD_BORDER_RADIUS_MM = 3
-CARD_BORDER_WIDTH = 1
-CARD_BORDER_COLOR = (210, 203, 188)
 
 # ==========================================
 # Medidas de visualización (px)
@@ -30,9 +28,9 @@ PREVIEW_DPI = 96
 # Apariencia
 # ==========================================
 
-BACKGROUND_COLOR = (60, 60, 60)
+BACKGROUND_COLOR = (75, 75, 75)
 
-PAPER_COLOR = (248, 245, 238)
+PAPER_COLOR = (255, 255, 255)
 
 SHADOW_COLOR = (120, 120, 120)
 
@@ -41,6 +39,8 @@ SHADOW_OFFSET = 6
 CARDS_PER_ROW = 3
 CARDS_PER_COLUMN = 3
 MAX_CARDS = 9
+
+FRAME_TEXTURE_OPACITY = 0.18
 
 # ==========================================
 # Estilos

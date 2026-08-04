@@ -5,6 +5,7 @@ from PySide6.QtGui import (
     QPixmap,
     QPen,
     QPainterPath,
+    QImage
 )
 from PySide6.QtCore import QRect, QSize, Qt
 from src.layout import GridLayout
@@ -21,10 +22,7 @@ from src.settings import (
     CARDS_PER_ROW,
     MAX_CARDS,
     CARD_BORDER_RADIUS_MM,
-    CARD_BORDER_WIDTH,
-    CARD_BORDER_COLOR,
     BLEED_MM,
-    BUTTON_STYLE,
     CUT_MARK_LENGTH_MM,
     CUT_MARK_OVERLAP_MM,
     CUT_MARK_CROSS_SIZE_MM,
@@ -32,7 +30,8 @@ from src.settings import (
     PAPER_HEIGHT_MM,
     PAPER_WIDTH_MM,
     CUT_MARK_WIDTH_MM,
-    CUT_MARK_EXTENSION_MM
+    CUT_MARK_EXTENSION_MM,
+    FRAME_TEXTURE_OPACITY
 )
 
 from src.units import (
@@ -52,8 +51,15 @@ class CardCanvas(QWidget):
         self.workspace_margin = 80
         self.print_mode = False
         self.dpi = PREVIEW_DPI
-        self.overlay = QPixmap(
-            "resources/themes/peliculas/peliculas 1.0.png"
+        self.overlay_frame = QPixmap(
+            "resources/themes/peliculas/overlay_frame.png"
+        )
+
+        self.overlay_fx = QPixmap(
+            "resources/themes/peliculas/overlay_fx.png"
+        )
+        self.paper_texture = QPixmap(
+            "resources/themes/peliculas/texture.png"
         )
 
     def mm_x(self, mm):
@@ -270,34 +276,137 @@ class CardCanvas(QWidget):
             card_spacing=card_spacing,
         )
 
-    def prepare_poster(self, image, card_rect):
+    def prepare_poster(
+        self,
+        image,
+        card_rect,
+    ):
         """
-        Calcula el tamaño y la posición del póster dentro de la carta.
-
-        El póster mantiene siempre su proporción original.
-        Se fija un margen superior e inferior constante y el margen
-        lateral se calcula automáticamente para centrar la imagen.
+        Calcula el tamaño y posición del póster utilizando
+        medidas físicas (mm), para que Preview y PDF sean idénticos.
         """
 
-        poster_margin_x = 23
-        poster_margin_y = 22
+        poster_margin = self.mm_x(POSTER_MARGIN_MM)
 
-        poster_height = 288
-
-        scaled_poster = image.scaledToHeight(
-            poster_height
+        poster_width = (
+            card_rect.width()
+            - poster_margin * 2
         )
 
-        poster_width = scaled_poster.width()
+        poster_height = (
+            card_rect.height()
+            - poster_margin * 2
+        )
 
-        poster_x = card_rect.x() + poster_margin_x
+        scaled_poster = image.scaled(
+            poster_width,
+            poster_height,
+            Qt.KeepAspectRatio,
+            Qt.SmoothTransformation,
+        )
 
-        poster_y = card_rect.y() + poster_margin_y
+        poster_x = (
+            card_rect.x()
+            + (card_rect.width() - scaled_poster.width()) // 2
+        )
+
+        poster_y = (
+            card_rect.y()
+            + (card_rect.height() - scaled_poster.height()) // 2
+        )
 
         return (
             poster_x,
             poster_y,
             scaled_poster,
+        )
+
+    def create_frame_path(
+        self,
+        card_rect,
+        poster_rect,
+    ):
+
+        radius = self.mm_x(CARD_BORDER_RADIUS_MM)
+
+        outer = QPainterPath()
+        outer.addRoundedRect(
+            card_rect,
+            radius,
+            radius,
+        )
+
+        inner = QPainterPath()
+        inner.addRoundedRect(
+            poster_rect,
+            radius,
+            radius,
+        )
+
+        return outer.subtracted(inner)
+
+    def draw_frame_texture(
+        self,
+        painter,
+        card_rect,
+        poster_rect,
+    ):
+
+        painter.save()
+
+        painter.setClipPath(
+            self.create_frame_path(
+                card_rect,
+                poster_rect,
+            )
+        )
+
+        painter.setOpacity(
+            FRAME_TEXTURE_OPACITY
+        )
+
+        painter.setCompositionMode(
+            QPainter.CompositionMode_Multiply
+        )
+
+        tile_w = self.paper_texture.width()
+        tile_h = self.paper_texture.height()
+
+        for y in range(
+            0,
+            self.height(),
+            tile_h,
+        ):
+
+            for x in range(
+                0,
+                self.width(),
+                tile_w,
+            ):
+
+                painter.drawPixmap(
+                    x,
+                    y,
+                    self.paper_texture,
+                )
+
+        painter.restore()
+
+    def draw_overlay_frame(
+        self,
+        painter,
+        card_rect,
+    ):
+
+        frame = self.overlay_frame.scaled(
+            card_rect.size(),
+            Qt.IgnoreAspectRatio,
+            Qt.SmoothTransformation,
+        )
+
+        painter.drawPixmap(
+            card_rect.topLeft(),
+            frame,
         )
 
     def draw_background(self, painter):
@@ -328,6 +437,39 @@ class CardCanvas(QWidget):
             paper_rect,
             QColor(*color)
         )
+
+    def draw_paper_texture(
+        self,
+        painter,
+        paper_rect,
+    ):
+        """Rellena la hoja utilizando una textura repetida."""
+        painter.save()
+
+        painter.setClipRect(
+            paper_rect
+        )
+        tile_width = self.paper_texture.width()
+        tile_height = self.paper_texture.height()
+
+        for y in range(
+            paper_rect.top(),
+            paper_rect.bottom(),
+            tile_height,
+        ):
+
+            for x in range(
+                paper_rect.left(),
+                paper_rect.right(),
+                tile_width,
+            ):
+
+                painter.drawPixmap(
+                    x,
+                    y,
+                    self.paper_texture,
+                )
+        painter.restore()
 
     def draw_grid(self, painter, layout):
         """Dibuja todas las cartas de la cuadrícula."""
@@ -400,72 +542,21 @@ class CardCanvas(QWidget):
 
         painter.restore()
 
-    def draw_overlay(
+    def draw_overlay_fx(
         self,
         painter,
         card_rect,
     ):
-        """Dibuja el overlay del tema."""
+
+        fx = self.overlay_fx.scaled(
+            card_rect.size(),
+            Qt.IgnoreAspectRatio,
+            Qt.SmoothTransformation,
+        )
 
         painter.drawPixmap(
-            card_rect,
-            self.overlay,
-        )
-
-    def draw_card_background(self, painter, card_rect):
-        """Dibuja el fondo de la carta."""
-
-        painter.setBrush(QColor(*PAPER_COLOR))
-        painter.setPen(Qt.NoPen)
-
-        radius = self.mm_x(CARD_BORDER_RADIUS_MM)
-
-        painter.drawRoundedRect(
-            card_rect,
-            radius,
-            radius,
-        )
-
-    def draw_card_bleed(self, painter, card_rect):
-        """Dibuja el sangrado de impresión."""
-
-        if not self.print_mode:
-            return
-
-        bleed = self.mm_x(BLEED_MM)
-
-        bleed_rect = QRect(
-            card_rect.x() - bleed,
-            card_rect.y() - bleed,
-            card_rect.width() + bleed * 2,
-            card_rect.height() + bleed * 2,
-        )
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(QColor(*PAPER_COLOR))
-
-        radius = self.mm_x(CARD_BORDER_RADIUS_MM)
-
-        painter.drawRoundedRect(
-            bleed_rect,
-            radius + bleed,
-            radius + bleed,
-        )
-
-    def draw_card_border(self, painter, card_rect):
-        """Dibuja el borde de la carta."""
-
-        pen = QPen(QColor(*CARD_BORDER_COLOR))
-        pen.setWidth(CARD_BORDER_WIDTH)
-
-        painter.setPen(pen)
-        painter.setBrush(Qt.NoBrush)
-
-        radius = self.mm_x(CARD_BORDER_RADIUS_MM)
-
-        painter.drawRoundedRect(
-            card_rect,
-            radius,
-            radius,
+            card_rect.topLeft(),
+            fx,
         )
 
     def prepare_cut_marks(self, layout):
@@ -700,11 +791,7 @@ class CardCanvas(QWidget):
             print("Bottom:", card_rect.bottom() - (poster_y + scaled_poster.height()))
             print("====================\n")
 
-        self.draw_card_bleed(
-            painter,
-            card_rect,
-        )
-
+        # Poster
         self.draw_poster(
             painter,
             poster_x,
@@ -712,13 +799,31 @@ class CardCanvas(QWidget):
             scaled_poster,
         )
 
-        self.draw_overlay(
+        frame_rect = card_rect
+
+        # Marco marfil
+        self.draw_overlay_frame(
             painter,
             card_rect,
         )
 
-        if not self.print_mode:
-            self.draw_card_border(
-                painter,
-                card_rect,
-            )
+        poster_rect = QRect(
+            poster_x,
+            poster_y,
+            scaled_poster.width(),
+            scaled_poster.height(),
+        )
+
+        self.draw_frame_texture(
+            painter,
+            frame_rect,
+            poster_rect,
+        )
+
+        # Brillos
+        self.draw_overlay_fx(
+            painter,
+            frame_rect,
+        )
+
+    
