@@ -40,7 +40,7 @@ CARDS_PER_ROW = 3
 CARDS_PER_COLUMN = 3
 MAX_CARDS = 9
 
-FRAME_TEXTURE_OPACITY = 0.18
+FRAME_TEXTURE_OPACITY = 0.28
 
 # ==========================================
 # Estilos
@@ -55,9 +55,12 @@ QPushButton {
 # Impresión
 # ------------------------------------------------------------
 
-BLEED_MM = 0
+BLEED_MM = 2
 CUT_MARK_LENGTH_MM = 5
 CUT_MARK_OVERLAP_MM = 2
 CUT_MARK_CROSS_SIZE_MM = 2
 CUT_MARK_WIDTH_MM = 0.25
 CUT_MARK_EXTENSION_MM = 1.5
+
+CUT_MARK_INNER_OVERLAP_MM = 0.8
+CUT_MARK_OUTER_EXTENSION_MM = 2.0

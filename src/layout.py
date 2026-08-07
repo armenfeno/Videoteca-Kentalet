@@ -1,9 +1,8 @@
 from dataclasses import dataclass
-
+from PySide6.QtCore import QRect
 
 @dataclass
 class GridLayout:
-    """Información necesaria para dibujar la cuadrícula."""
 
     grid_x: int
     grid_y: int
@@ -12,3 +11,5 @@ class GridLayout:
     card_height: int
 
     card_spacing: int
+
+    paper_rect: QRect

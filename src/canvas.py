@@ -5,7 +5,7 @@ from PySide6.QtGui import (
     QPixmap,
     QPen,
     QPainterPath,
-    QImage
+    QBrush,
 )
 from PySide6.QtCore import QRect, QSize, Qt
 from src.layout import GridLayout
@@ -31,7 +31,9 @@ from src.settings import (
     PAPER_WIDTH_MM,
     CUT_MARK_WIDTH_MM,
     CUT_MARK_EXTENSION_MM,
-    FRAME_TEXTURE_OPACITY
+    FRAME_TEXTURE_OPACITY,
+    CUT_MARK_INNER_OVERLAP_MM,
+    CUT_MARK_OUTER_EXTENSION_MM
 )
 
 from src.units import (
@@ -133,7 +135,7 @@ class CardCanvas(QWidget):
         target_rect,
     ):
         """Dibuja toda la escena sobre cualquier QPainter."""
-        print("Canvas DPI:", self.dpi)
+        #print("Canvas DPI:", self.dpi)
         paper_rect = self.prepare_paper(
             target_rect,
         )
@@ -215,12 +217,17 @@ class CardCanvas(QWidget):
             paper_height,
         )
 
-    def prepare_preview_grid(self, paper_rect):
-        """Calcula la posición y tamaño de la cuadrícula."""
+    def prepare_grid(
+        self,
+        paper_rect,
+        card_spacing,
+    ):
+        """
+        Calcula la cuadrícula de cartas para cualquier modo.
+        """
 
         card_width = self.mm_x(CARD_WIDTH_MM)
         card_height = self.mm_y(CARD_HEIGHT_MM)
-        card_spacing = self.mm_x(CARD_SPACING_MM)
 
         grid_width = (
             CARDS_PER_ROW * card_width
@@ -232,11 +239,15 @@ class CardCanvas(QWidget):
             + (CARDS_PER_COLUMN - 1) * card_spacing
         )
 
-        free_width = paper_rect.width() - grid_width
-        free_height = paper_rect.height() - grid_height
+        grid_x = (
+            paper_rect.x()
+            + (paper_rect.width() - grid_width) // 2
+        )
 
-        grid_x = paper_rect.x() + free_width // 2
-        grid_y = paper_rect.y() + free_height // 2
+        grid_y = (
+            paper_rect.y()
+            + (paper_rect.height() - grid_height) // 2
+        )
 
         return GridLayout(
             grid_x=grid_x,
@@ -244,36 +255,25 @@ class CardCanvas(QWidget):
             card_width=card_width,
             card_height=card_height,
             card_spacing=card_spacing,
+            paper_rect=paper_rect,
         )
 
-    def prepare_print_grid(self, paper_rect):
-        """Calcula el layout para impresión."""
-
-        card_width = self.mm_x(CARD_WIDTH_MM)
-        card_height = self.mm_y(CARD_HEIGHT_MM)
-
-        card_spacing = 0
-
-        grid_width = (
-            CARDS_PER_ROW * card_width
+    def prepare_preview_grid(
+        self,
+        paper_rect,
+    ):
+        return self.prepare_grid(
+            paper_rect,
+            self.mm_x(CARD_SPACING_MM),
         )
 
-        grid_height = (
-            CARDS_PER_COLUMN * card_height
-        )
-
-        free_width = paper_rect.width() - grid_width
-        free_height = paper_rect.height() - grid_height
-
-        grid_x = paper_rect.x() + free_width // 2
-        grid_y = paper_rect.y() + free_height // 2
-
-        return GridLayout(
-            grid_x=grid_x,
-            grid_y=grid_y,
-            card_width=card_width,
-            card_height=card_height,
-            card_spacing=card_spacing,
+    def prepare_print_grid(
+        self,
+        paper_rect,
+    ):
+        return self.prepare_grid(
+            paper_rect,
+            self.mm_x(CARD_SPACING_MM),
         )
 
     def prepare_poster(
@@ -345,21 +345,48 @@ class CardCanvas(QWidget):
 
         return outer.subtracted(inner)
 
-    def draw_frame_texture(
+    def create_bleed_frame_path(
         self,
-        painter,
         card_rect,
         poster_rect,
     ):
+        """Genera el marco exterior utilizado como bleed."""
+
+        bleed = self.mm_x(BLEED_MM)
+
+        bleed_rect = QRect(
+            card_rect.left() - bleed,
+            card_rect.top() - bleed,
+            card_rect.width() + bleed * 2,
+            card_rect.height() + bleed * 2,
+        )
+
+        radius = self.mm_x(CARD_BORDER_RADIUS_MM)
+
+        outer = QPainterPath()
+        outer.addRoundedRect(
+            bleed_rect,
+            radius + bleed,
+            radius + bleed,
+        )
+
+        inner = QPainterPath()
+        inner.addRoundedRect(
+            poster_rect,
+            radius,
+            radius,
+        )
+
+        return outer.subtracted(inner)
+
+    def draw_frame_texture(
+        self,
+        painter,
+        frame_path,
+    ):
+        """Aplica la textura únicamente al marco."""
 
         painter.save()
-
-        painter.setClipPath(
-            self.create_frame_path(
-                card_rect,
-                poster_rect,
-            )
-        )
 
         painter.setOpacity(
             FRAME_TEXTURE_OPACITY
@@ -369,26 +396,14 @@ class CardCanvas(QWidget):
             QPainter.CompositionMode_Multiply
         )
 
-        tile_w = self.paper_texture.width()
-        tile_h = self.paper_texture.height()
+        brush = QBrush(
+            self.paper_texture
+        )
 
-        for y in range(
-            0,
-            self.height(),
-            tile_h,
-        ):
-
-            for x in range(
-                0,
-                self.width(),
-                tile_w,
-            ):
-
-                painter.drawPixmap(
-                    x,
-                    y,
-                    self.paper_texture,
-                )
+        painter.fillPath(
+            frame_path,
+            brush,
+        )
 
         painter.restore()
 
@@ -559,46 +574,310 @@ class CardCanvas(QWidget):
             fx,
         )
 
-    def prepare_cut_marks(self, layout):
-        """Calcula las posiciones de las marcas de corte."""
+    def prepare_cards(self, layout):
+        """
+        Calcula la geometría real de todas las cartas.
+        """
 
-        left = layout.grid_x
+        cards = []
 
-        right = (
-            layout.grid_x
-            + CARDS_PER_ROW * layout.card_width
+        pitch_x = (
+            layout.card_width
+            + layout.card_spacing
         )
 
-        top = layout.grid_y
-
-        bottom = (
-            layout.grid_y
-            + CARDS_PER_COLUMN * layout.card_height
+        pitch_y = (
+            layout.card_height
+            + layout.card_spacing
         )
 
-        verticals = [
-            left,
-        ]
+        for row in range(CARDS_PER_COLUMN):
 
-        for column in range(1, CARDS_PER_ROW):
-            verticals.append(
-                left + column * layout.card_width
+            for column in range(CARDS_PER_ROW):
+
+                x = (
+                    layout.grid_x
+                    + column * pitch_x
+                )
+
+                y = (
+                    layout.grid_y
+                    + row * pitch_y
+                )
+
+                cards.append(
+                    QRect(
+                        x,
+                        y,
+                        layout.card_width,
+                        layout.card_height,
+                    )
+                )
+
+        return cards
+
+    def draw_mark(
+        self,
+        painter,
+        x,
+        y,
+        size,
+        gap,
+        up=True,
+        down=True,
+        left=True,
+        right=True,
+    ):
+        """Dibuja una marca de corte configurable."""
+
+        if up:
+            self.draw_line(
+    painter,
+                x,
+                y - size,
+                x,
+                y - gap,
             )
 
-        verticals.append(right)
-
-        horizontals = [
-            top,
-        ]
-
-        for row in range(1, CARDS_PER_COLUMN):
-            horizontals.append(
-                top + row * layout.card_height
+        if down:
+            self.draw_line(
+    painter,
+                x,
+                y + gap,
+                x,
+                y + size,
             )
 
-        horizontals.append(bottom)
+        if left:
+            self.draw_line(
+    painter,
+                x - size,
+                y,
+                x - gap,
+                y,
+            )
 
-        return verticals, horizontals
+        if right:
+            self.draw_line(
+    painter,
+                x + gap,
+                y,
+                x + size,
+                y,
+            )
+
+    def draw_line(
+        self,
+        painter,
+        x1,
+        y1,
+        x2,
+        y2,
+    ):
+        """Dibuja una línea usando coordenadas enteras."""
+
+        painter.drawLine(
+            int(x1),
+            int(y1),
+            int(x2),
+            int(y2),
+        )
+
+    def draw_card_corner_marks(
+        self,
+        painter,
+        card,
+        paper_rect,
+    ):
+        """Dibuja las marcas correspondientes a una única carta."""
+
+        mark_length_x = self.mm_x(
+            CUT_MARK_LENGTH_MM
+        )
+
+        mark_length_y = self.mm_y(
+            CUT_MARK_LENGTH_MM
+        )
+
+        inner_x = self.mm_x(
+            CUT_MARK_INNER_OVERLAP_MM
+        )
+
+        inner_y = self.mm_y(
+            CUT_MARK_INNER_OVERLAP_MM
+        )
+
+        outer_x = self.mm_x(
+            CUT_MARK_OUTER_EXTENSION_MM
+        )
+
+        outer_y = self.mm_y(
+            CUT_MARK_OUTER_EXTENSION_MM
+        )
+
+        left = card.left()
+        right = card.right()
+
+        top = card.top()
+        bottom = card.bottom()
+
+        paper_left = paper_rect.left()
+        paper_right = paper_rect.right()
+
+        paper_top = paper_rect.top()
+        paper_bottom = paper_rect.bottom()
+
+        # ---------- Superior ----------
+
+        if top == paper_top:
+
+            self.draw_line(
+                painter,
+                left,
+                top + inner_y,
+                left,
+                paper_top,
+            )
+
+            self.draw_line(
+                painter,
+                right,
+                top + inner_y,
+                right,
+                paper_top,
+            )
+
+        else:
+
+            self.draw_line(
+                painter,
+                left,
+                top + inner_y,
+                left,
+                top - mark_length_y - outer_y,
+            )
+
+            self.draw_line(
+                painter,
+                right,
+                top + inner_y,
+                right,
+                top - mark_length_y - outer_y,
+            )
+
+        # ---------- Inferior ----------
+
+        if bottom == paper_bottom:
+
+            self.draw_line(
+                painter,
+                left,
+                bottom - inner_y,
+                left,
+                paper_bottom,
+            )
+
+            self.draw_line(
+                painter,
+                right,
+                bottom - inner_y,
+                right,
+                paper_bottom,
+            )
+
+        else:
+
+            self.draw_line(
+                painter,
+                left,
+                bottom - inner_y,
+                left,
+                bottom - inner_y + mark_length_y + outer_y,
+            )
+
+            self.draw_line(
+                painter,
+                right,
+                bottom - inner_y,
+                right,
+                bottom - inner_y + mark_length_y + outer_y,
+            )
+
+        # ---------- Izquierda ----------
+
+        if left == paper_left:
+
+            self.draw_line(
+                painter,
+                left + inner_x,
+                top,
+                paper_left,
+                top,
+            )
+
+            self.draw_line(
+                painter,
+                left + inner_x,
+                bottom,
+                paper_left,
+                bottom,
+            )
+
+        else:
+
+            self.draw_line(
+                painter,
+                left + inner_x,
+                top,
+                left - mark_length_x - outer_x,
+                top,
+            )
+
+            self.draw_line(
+                painter,
+                left + inner_x,
+                bottom,
+                left - mark_length_x - outer_x,
+                bottom,
+            )
+
+        # ---------- Derecha ----------
+
+        if right == paper_right:
+
+            self.draw_line(
+                painter,
+                right - inner_x,
+                top,
+                paper_right,
+                top,
+            )
+
+            self.draw_line(
+                painter,
+                right - inner_x,
+                bottom,
+                paper_right,
+                bottom,
+            )
+
+        else:
+
+            self.draw_line(
+                painter,
+                right - inner_x,
+                top,
+                right + mark_length_x + outer_x,
+                top,
+            )
+
+            self.draw_line(
+                painter,
+                right - inner_x,
+                bottom,
+                right + mark_length_x + outer_x,
+                bottom,
+            )
 
     def draw_cut_marks(
         self,
@@ -607,7 +886,7 @@ class CardCanvas(QWidget):
     ):
         """Dibuja las marcas de corte del modo impresión."""
 
-        verticals, horizontals = self.prepare_cut_marks(
+        cards = self.prepare_cards(
             layout,
         )
 
@@ -619,142 +898,13 @@ class CardCanvas(QWidget):
 
         painter.setPen(pen)
 
-        mark_length = self.mm_y(CUT_MARK_LENGTH_MM)
-        corner_overlap = self.mm_x(CUT_MARK_OVERLAP_MM)
-        extension = self.mm_x(CUT_MARK_EXTENSION_MM)
+        for card in cards:
 
-        top = horizontals[0]
-        bottom = horizontals[-1]
-        left = verticals[0]
-        right = verticals[-1]
-
-        # --------------------------------------------------
-        # Marcas superiores
-        # --------------------------------------------------
-
-        for i, x in enumerate(verticals):
-
-            start_y = top
-            end_y = top - mark_length
-
-            if i == 0 or i == len(verticals) - 1:
-                start_y += corner_overlap
-            else:
-                start_y += extension
-
-            painter.drawLine(
-                x,
-                start_y,
-                x,
-                end_y,
+            self.draw_card_corner_marks(
+                painter,
+                card,
+                layout.paper_rect,
             )
-
-        # --------------------------------------------------
-        # Marcas inferiores
-        # --------------------------------------------------
-
-        for i, x in enumerate(verticals):
-
-            start_y = bottom
-            end_y = bottom + mark_length
-
-            if i == 0 or i == len(verticals) - 1:
-                start_y -= corner_overlap
-            else:
-                start_y -= extension
-
-            painter.drawLine(
-                x,
-                start_y,
-                x,
-                end_y,
-            )
-
-        mark_length = self.mm_x(CUT_MARK_LENGTH_MM)
-
-        # --------------------------------------------------
-        # Marcas izquierdas
-        # --------------------------------------------------
-
-        for i, y in enumerate(horizontals):
-
-            start_x = left
-            end_x = left - mark_length
-
-            if i == 0 or i == len(horizontals) - 1:
-                start_x += corner_overlap
-            else:
-                start_x += extension
-
-            painter.drawLine(
-                start_x,
-                y,
-                end_x,
-                y,
-            )
-
-        # --------------------------------------------------
-        # Marcas derechas
-        # --------------------------------------------------
-
-        for i, y in enumerate(horizontals):
-
-            start_x = right
-            end_x = right + mark_length
-
-            if i == 0 or i == len(horizontals) - 1:
-                start_x -= corner_overlap
-            else:
-                start_x -= extension
-
-            painter.drawLine(
-                start_x,
-                y,
-                end_x,
-                y,
-            )
-
-        # --------------------------------------------------
-        # Cruces interiores
-        # --------------------------------------------------
-
-        cross_size = self.mm_x(CUT_MARK_CROSS_SIZE_MM)
-        cross_gap = 2
-
-        for x in verticals[1:-1]:
-            for y in horizontals[1:-1]:
-
-                # Arriba
-                painter.drawLine(
-                    x,
-                    y - cross_size,
-                    x,
-                    y - cross_gap,
-                )
-
-                # Abajo
-                painter.drawLine(
-                    x,
-                    y + cross_gap,
-                    x,
-                    y + cross_size,
-                )
-
-                # Izquierda
-                painter.drawLine(
-                    x - cross_size,
-                    y,
-                    x - cross_gap,
-                    y,
-                )
-
-                # Derecha
-                painter.drawLine(
-                    x + cross_gap,
-                    y,
-                    x + cross_size,
-                    y,
-                )
 
     def draw_card_layout(self, painter, image, card_rect):
         """
@@ -770,41 +920,12 @@ class CardCanvas(QWidget):
 
             self._debug_done = True
 
-            print("\n====================")
-            print("CARD")
-            print(card_rect)
-
-            print("\nPOSTER")
-            print(
-                QRect(
-                    poster_x,
-                    poster_y,
-                    scaled_poster.width(),
-                    scaled_poster.height(),
-                )
-            )
-
-            print("\nMARGINS")
-            print("Left :", poster_x - card_rect.x())
-            print("Top  :", poster_y - card_rect.y())
-            print("Right:", card_rect.right() - (poster_x + scaled_poster.width()))
-            print("Bottom:", card_rect.bottom() - (poster_y + scaled_poster.height()))
-            print("====================\n")
-
         # Poster
         self.draw_poster(
             painter,
             poster_x,
             poster_y,
             scaled_poster,
-        )
-
-        frame_rect = card_rect
-
-        # Marco marfil
-        self.draw_overlay_frame(
-            painter,
-            card_rect,
         )
 
         poster_rect = QRect(
@@ -814,16 +935,39 @@ class CardCanvas(QWidget):
             scaled_poster.height(),
         )
 
+        frame_path = self.create_frame_path(
+            card_rect,
+            poster_rect,
+        )
+
+        if self.print_mode:
+
+            bleed_path = self.create_bleed_frame_path(
+                card_rect,
+                poster_rect,
+            )
+
+            self.draw_frame_texture(
+                painter,
+                bleed_path,
+            )
+
+        # Marco marfil
+        self.draw_overlay_frame(
+            painter,
+            card_rect,
+        )
+
+        # Textura SOLO sobre el marco
         self.draw_frame_texture(
             painter,
-            frame_rect,
-            poster_rect,
+            frame_path,
         )
 
         # Brillos
         self.draw_overlay_fx(
             painter,
-            frame_rect,
+            card_rect,
         )
 
     
