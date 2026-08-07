@@ -187,15 +187,31 @@ class CardCanvas(QWidget):
         paper_width = self.mm_x(PAPER_WIDTH_MM)
         paper_height = self.mm_y(PAPER_HEIGHT_MM)
 
-        paper_x = max(
-            target_rect.x() + self.workspace_margin,
-            target_rect.x() + (target_rect.width() - paper_width) // 2,
-        )
+        if self.dpi == PREVIEW_DPI:
 
-        paper_y = max(
-            target_rect.y() + self.workspace_margin,
-            target_rect.y() + (target_rect.height() - paper_height) // 2,
-        )
+            paper_x = max(
+                target_rect.x() + self.workspace_margin,
+                target_rect.x()
+                + (target_rect.width() - paper_width) // 2,
+            )
+
+            paper_y = max(
+                target_rect.y() + self.workspace_margin,
+                target_rect.y()
+                + (target_rect.height() - paper_height) // 2,
+            )
+
+        else:
+
+            paper_x = (
+                target_rect.x()
+                + (target_rect.width() - paper_width) // 2
+            )
+
+            paper_y = (
+                target_rect.y()
+                + (target_rect.height() - paper_height) // 2
+            )
 
         return QRect(
             paper_x,
@@ -616,56 +632,6 @@ class CardCanvas(QWidget):
 
         return cards
 
-    def draw_mark(
-        self,
-        painter,
-        x,
-        y,
-        size,
-        gap,
-        up=True,
-        down=True,
-        left=True,
-        right=True,
-    ):
-        """Dibuja una marca de corte configurable."""
-
-        if up:
-            self.draw_line(
-    painter,
-                x,
-                y - size,
-                x,
-                y - gap,
-            )
-
-        if down:
-            self.draw_line(
-    painter,
-                x,
-                y + gap,
-                x,
-                y + size,
-            )
-
-        if left:
-            self.draw_line(
-    painter,
-                x - size,
-                y,
-                x - gap,
-                y,
-            )
-
-        if right:
-            self.draw_line(
-    painter,
-                x + gap,
-                y,
-                x + size,
-                y,
-            )
-
     def draw_line(
         self,
         painter,
@@ -674,13 +640,13 @@ class CardCanvas(QWidget):
         x2,
         y2,
     ):
-        """Dibuja una línea usando coordenadas enteras."""
+        """Dibuja una línea."""
 
         painter.drawLine(
-            int(x1),
-            int(y1),
-            int(x2),
-            int(y2),
+            x1,
+            y1,
+            x2,
+            y2,
         )
 
     def draw_card_corner_marks(
@@ -688,6 +654,8 @@ class CardCanvas(QWidget):
         painter,
         card,
         paper_rect,
+        row,
+        column,
     ):
         """Dibuja las marcas correspondientes a una única carta."""
 
@@ -727,9 +695,15 @@ class CardCanvas(QWidget):
         paper_top = paper_rect.top()
         paper_bottom = paper_rect.bottom()
 
+        top_edge = row == 0
+        bottom_edge = row == CARDS_PER_COLUMN - 1
+
+        left_edge = column == 0
+        right_edge = column == CARDS_PER_ROW - 1
+
         # ---------- Superior ----------
 
-        if top == paper_top:
+        if top_edge:
 
             self.draw_line(
                 painter,
@@ -752,9 +726,9 @@ class CardCanvas(QWidget):
             self.draw_line(
                 painter,
                 left,
-                top + inner_y,
+                top + inner_y + 30,
                 left,
-                top - mark_length_y - outer_y,
+                top - mark_length_y - outer_y + 80,
             )
 
             self.draw_line(
@@ -767,7 +741,7 @@ class CardCanvas(QWidget):
 
         # ---------- Inferior ----------
 
-        if bottom == paper_bottom:
+        if bottom_edge:
 
             self.draw_line(
                 painter,
@@ -790,7 +764,7 @@ class CardCanvas(QWidget):
             self.draw_line(
                 painter,
                 left,
-                bottom - inner_y,
+                bottom - inner_y - 2,
                 left,
                 bottom - inner_y + mark_length_y + outer_y,
             )
@@ -798,14 +772,14 @@ class CardCanvas(QWidget):
             self.draw_line(
                 painter,
                 right,
-                bottom - inner_y,
+                bottom - inner_y - 2,
                 right,
                 bottom - inner_y + mark_length_y + outer_y,
             )
 
         # ---------- Izquierda ----------
 
-        if left == paper_left:
+        if left_edge:
 
             self.draw_line(
                 painter,
@@ -827,7 +801,7 @@ class CardCanvas(QWidget):
 
             self.draw_line(
                 painter,
-                left + inner_x,
+                left + inner_x + 2,
                 top,
                 left - mark_length_x - outer_x,
                 top,
@@ -843,7 +817,7 @@ class CardCanvas(QWidget):
 
         # ---------- Derecha ----------
 
-        if right == paper_right:
+        if right_edge:
 
             self.draw_line(
                 painter,
@@ -865,7 +839,7 @@ class CardCanvas(QWidget):
 
             self.draw_line(
                 painter,
-                right - inner_x,
+                right - inner_x - 2,
                 top,
                 right + mark_length_x + outer_x,
                 top,
@@ -898,12 +872,17 @@ class CardCanvas(QWidget):
 
         painter.setPen(pen)
 
-        for card in cards:
+        for index, card in enumerate(cards):
+
+            row = index // CARDS_PER_ROW
+            column = index % CARDS_PER_ROW
 
             self.draw_card_corner_marks(
                 painter,
                 card,
                 layout.paper_rect,
+                row,
+                column,
             )
 
     def draw_card_layout(self, painter, image, card_rect):

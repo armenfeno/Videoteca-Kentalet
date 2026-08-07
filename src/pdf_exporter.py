@@ -22,6 +22,9 @@ class PdfExporter:
         writer = QPdfWriter(filename)
 
         writer.setPageSize(QPageSize(QPageSize.A4))
+        writer.setPageMargins(
+            QMarginsF(0, 0, 0, 0)
+        )
         writer.setResolution(1200)
 
         painter = QPainter()
@@ -36,10 +39,19 @@ class PdfExporter:
 
         print("Canvas DPI:", canvas.dpi)
 
+        page_rect = writer.pageLayout().paintRectPixels(
+            writer.resolution()
+        )
+
+        print(page_rect)
+
         canvas.render(
             painter,
-            painter.viewport(),
+            page_rect,
         )
+
+        print("Viewport :", painter.viewport())
+        print("PaintRect:", page_rect)
 
         # -----------------------------
         # Restaurar DPI
